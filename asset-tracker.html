@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>資產追蹤器 · Portfolio Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080810;
+    --bg2: #0d0d18;
+    --bg3: #13131f;
+    --border: #1e1e2e;
+    --border2: rgba(255,255,255,.06);
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #475569;
+    --text4: #334155;
+    --green: #34d399;
+    --green2: #059669;
+    --red: #f87171;
+    --red2: #dc2626;
+    --gold: #f59e0b;
+    --gold2: #d97706;
+    --indigo: #818cf8;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Noto Sans TC', sans-serif;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input[type=number] { -moz-appearance: textfield; }
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-thumb { background: #1e1e2e; border-radius: 2px; }
+  button { font-family: var(--sans); cursor: pointer; }
+  input { font-family: var(--sans); }
+
+  /* ── animations ── */
+  @keyframes fadeUp   { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:translateY(0) } }
+  @keyframes scalePop { from { opacity:0; transform:scale(.93)       } to { opacity:1; transform:scale(1)      } }
+  @keyframes slideUp  { from { opacity:0; transform:translateY(100%) } to { opacity:1; transform:translateY(0) } }
+  @keyframes toastIn  { from { opacity:0; transform:translate(-50%,-10px) } to { opacity:1; transform:translate(-50%,0) } }
+  @keyframes toastOut { to   { opacity:0; transform:translate(-50%,-10px) } }
+  @keyframes barGrow  { from { transform: scaleY(0) } to { transform: scaleY(1) } }
+  @keyframes pulse    { 0%,100% { opacity:1 } 50% { opacity:.5 } }
+  @keyframes spin     { to { transform: rotate(360deg) } }
+
+  .fade-up  { animation: fadeUp  .35s ease both; }
+  .pop      { animation: scalePop .25s cubic-bezier(.34,1.56,.64,1) both; }
+  .slide-up { animation: slideUp .3s cubic-bezier(.22,1,.36,1) both; }
+
+  /* ── layout ── */
+  #app { max-width: 430px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; position: relative; }
+
+  /* ── header ── */
+  .header { padding: 52px 20px 0; display: flex; align-items: center; justify-content: space-between; }
+  .header-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: .18em; text-transform: uppercase; margin-bottom: 4px; }
+  .header-title { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .icon-btn { width: 36px; height: 36px; border-radius: 10px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text3); transition: color .2s, background .2s; }
+  .icon-btn:hover { color: var(--text); background: #1a1a2e; }
+  .icon-btn:active { transform: scale(.94); }
+
+  /* ── hero card ── */
+  .hero { margin: 16px 20px 0; border-radius: 20px; padding: 24px; background: var(--bg2); position: relative; overflow: hidden; transition: border-color .4s; }
+  .hero-glow { position: absolute; top: -40px; right: -40px; width: 160px; height: 160px; border-radius: 50%; pointer-events: none; }
+  .hero-glow2 { position: absolute; bottom: -60px; left: -30px; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,.05), transparent 70%); pointer-events: none; }
+  .hero-inner { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: flex-end; }
+  .hero-label { font-size: 11px; color: var(--text3); margin-bottom: 8px; letter-spacing: .04em; }
+  .hero-pnl { font-family: var(--mono); font-size: 36px; font-weight: 700; line-height: 1; letter-spacing: -.03em; }
+  .hero-rate { font-family: var(--mono); font-size: 13px; margin-top: 6px; opacity: .75; }
+  .hero-winlabel { font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+  .hero-winpct { font-family: var(--mono); font-size: 26px; font-weight: 700; }
+  .hero-winpct span { font-size: 14px; color: var(--text3); }
+  .hero-winsub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .hero-bar-wrap { margin-top: 18px; height: 3px; border-radius: 2px; background: #1a1a2e; overflow: hidden; position: relative; z-index: 1; }
+  .hero-bar { height: 100%; border-radius: 2px; transition: width .8s ease; }
+  .hero-bar-legend { display: flex; justify-content: space-between; margin-top: 8px; position: relative; z-index: 1; }
+  .hero-bar-legend span { font-size: 11px; }
+
+  /* ── tabs ── */
+  .tabs { display: flex; padding: 16px 20px 0; gap: 4px; }
+  .tab-btn { flex: 1; padding: 8px 0; border: none; border-radius: 10px; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all .2s; }
+  .tab-btn svg { width: 14px; height: 14px; }
+  .tab-btn.active { background: #1a1a2e; color: var(--text); font-weight: 600; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
+  .tab-btn:not(.active) { background: transparent; color: var(--text3); }
+  .tab-btn:hover:not(.active) { color: var(--text2); }
+  .tab-btn:active { transform: scale(.96); }
+
+  /* ── content ── */
+  .content { flex: 1; padding: 16px 20px 100px; overflow-y: auto; }
+
+  /* ── section ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── month nav ── */
+  .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .month-label { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .05em; }
+  .nav-btn { width: 34px; height: 34px; border-radius: 10px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text2); transition: all .2s; }
+  .nav-btn:hover { color: var(--text); background: #1a1a2e; }
+  .nav-btn:active { transform: scale(.94); }
+
+  /* ── calendar grid ── */
+  .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
+  .cal-weekday { text-align: center; font-size: 11px; color: var(--text4); padding: 4px 0; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-empty { min-height: 68px; }
+  .cal-day { border-radius: 10px; padding: 8px 3px 6px; cursor: pointer; text-align: center; background: rgba(255,255,255,.015); border: 1px solid transparent; min-height: 68px; display: flex; flex-direction: column; align-items: center; transition: background .15s, transform .1s; }
+  .cal-day:hover { background: rgba(255,255,255,.04); transform: scale(1.02); }
+  .cal-day:active { transform: scale(.97); }
+  .cal-day.today { background: rgba(99,102,241,.1); border-color: rgba(99,102,241,.3); }
+  .day-num { font-size: 11px; font-weight: 400; color: var(--text3); width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+  .today .day-num { background: rgba(99,102,241,.2); color: var(--indigo); font-weight: 700; }
+  .day-pnl { font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: -.5px; }
+  .day-rate { font-size: 8.5px; margin-top: 2px; }
+  .day-empty-line { font-size: 9px; color: #1e293b; margin-top: 4px; }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  .neu { color: var(--text3); }
+
+  /* ── chart section ── */
+  .period-toggle { display: flex; background: var(--bg2); border-radius: 12px; padding: 4px; border: 1px solid var(--border); margin-bottom: 20px; }
+  .period-btn { flex: 1; padding: 8px; border-radius: 8px; border: none; font-size: 12px; font-weight: 500; background: transparent; color: var(--text3); transition: all .2s; }
+  .period-btn.active { background: #1a1a2e; color: var(--text); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
+  .period-btn:active { transform: scale(.96); }
+
+  .chart-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 20px 12px 8px; margin-bottom: 16px; }
+  .chart-ylabel { font-size: 11px; color: var(--text3); margin-bottom: 16px; padding-left: 4px; }
+  .chart-bars { display: flex; align-items: flex-end; height: 160px; gap: 2px; position: relative; }
+  .chart-zeroline { position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed rgba(255,255,255,.07); pointer-events: none; }
+  .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+  .chart-top { flex: 1; display: flex; align-items: flex-end; width: 100%; justify-content: center; }
+  .chart-bot { height: 50%; display: flex; align-items: flex-start; width: 100%; justify-content: center; }
+  .chart-bar-pos { width: 70%; border-radius: 2px 2px 0 0; transform-origin: bottom; animation: barGrow .4s ease both; }
+  .chart-bar-neg { width: 70%; border-radius: 0 0 2px 2px; transform-origin: top; animation: barGrow .4s ease both; }
+  .chart-label { font-size: 7.5px; color: var(--text4); margin-top: 3px; text-align: center; }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .stat-label { font-size: 11px; color: var(--text3); margin-bottom: 6px; }
+  .stat-val { font-family: var(--mono); font-size: 18px; font-weight: 700; }
+
+  /* ── analysis ── */
+  .analysis-wrap { display: flex; flex-direction: column; gap: 10px; }
+  .win-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 24px; }
+  .win-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .win-title { font-size: 13px; color: var(--text2); font-weight: 500; }
+  .win-pct { font-family: var(--mono); font-size: 28px; font-weight: 700; color: var(--gold); }
+  .win-pct span { font-size: 14px; color: #78716c; }
+  .win-bar-wrap { height: 6px; border-radius: 3px; background: #1e293b; overflow: hidden; }
+  .win-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--gold), var(--gold2)); transition: width 1s ease; }
+  .win-legend { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; }
+
+  .row-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .row-label { font-size: 13px; color: var(--text3); }
+  .row-val { font-family: var(--mono); font-weight: 700; font-size: 14px; }
+  .row-sub { font-size: 10px; color: var(--text3); margin-top: 2px; text-align: right; }
+
+  .danger-btn { width: 100%; margin-top: 6px; padding: 12px; border: 1px solid rgba(239,68,68,.2); background: transparent; border-radius: 12px; color: rgba(239,68,68,.6); font-size: 13px; transition: all .2s; }
+  .danger-btn:hover { background: rgba(239,68,68,.05); color: var(--red); }
+  .danger-btn:active { transform: scale(.97); }
+
+  /* ── IPO ── */
+  .ipo-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .ipo-title { font-size: 15px; font-weight: 600; }
+  .ipo-count { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .gold-btn { display: flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 12px; background: linear-gradient(135deg, var(--gold), var(--gold2)); border: none; color: #000; font-weight: 700; font-size: 12px; box-shadow: 0 4px 15px rgba(245,158,11,.25); transition: all .2s; }
+  .gold-btn:hover { box-shadow: 0 6px 20px rgba(245,158,11,.35); transform: translateY(-1px); }
+  .gold-btn:active { transform: scale(.96); }
+  .gold-btn svg { width: 13px; height: 13px; }
+
+  .ipo-summary { background: var(--bg2); border-radius: 14px; padding: 14px 18px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+  .ipo-sum-label { font-size: 12px; color: var(--text3); }
+  .ipo-sum-val { font-family: var(--mono); font-weight: 700; font-size: 18px; }
+
+  .ipo-list { display: flex; flex-direction: column; gap: 8px; }
+  .ipo-item { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+  .ipo-info { flex: 1; min-width: 0; }
+  .ipo-name-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .ipo-name { font-size: 13px; font-weight: 600; }
+  .ipo-code { font-size: 10px; color: var(--text3); background: #1e293b; padding: 2px 6px; border-radius: 4px; }
+  .ipo-date { font-size: 11px; color: var(--text4); }
+  .ipo-pnl { text-align: right; }
+  .ipo-pnl-val { font-family: var(--mono); font-weight: 700; font-size: 14px; }
+  .ipo-pnl-rate { font-size: 10px; color: var(--text4); margin-top: 2px; }
+  .delete-btn { width: 28px; height: 28px; border-radius: 8px; background: transparent; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text4); flex-shrink: 0; transition: all .2s; }
+  .delete-btn:hover { color: var(--red); border-color: rgba(248,113,113,.3); }
+  .delete-btn:active { transform: scale(.94); }
+  .delete-btn svg { width: 12px; height: 12px; }
+  .ipo-empty { text-align: center; padding: 48px 0; color: #1e293b; }
+  .ipo-empty svg { width: 32px; height: 32px; margin: 0 auto 12px; opacity: .2; }
+  .ipo-empty p { font-size: 13px; }
+
+  /* ── overlay ── */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(8px); z-index: 50; display: flex; align-items: flex-end; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .overlay.center { align-items: center; padding: 24px; }
+  .overlay.open { opacity: 1; pointer-events: all; }
+
+  .bottom-sheet { width: 100%; max-width: 430px; background: var(--bg2); border: 1px solid rgba(255,255,255,.08); border-radius: 20px 20px 0 0; padding: 24px 20px 40px; }
+  .sheet-drag { width: 36px; height: 4px; border-radius: 2px; background: #1e293b; margin: 0 auto 20px; }
+  .sheet-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+  .sheet-title { font-size: 15px; font-weight: 600; }
+  .sheet-date { font-family: var(--mono); font-weight: 700; }
+  .sheet-sublabel { font-size: 11px; color: var(--text3); margin-bottom: 2px; }
+
+  .confirm-card { width: 100%; max-width: 320px; background: var(--bg2); border: 1px solid rgba(239,68,68,.2); border-radius: 20px; padding: 28px; text-align: center; }
+  .confirm-icon { margin: 0 auto 14px; color: var(--red); }
+  .confirm-icon svg { width: 32px; height: 32px; }
+  .confirm-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .confirm-desc { font-size: 13px; color: var(--text3); line-height: 1.6; margin-bottom: 24px; }
+
+  /* ── form fields ── */
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 11px; color: var(--text3); margin-bottom: 6px; }
+  .field input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--text); font-size: 14px; font-family: var(--mono); outline: none; transition: border-color .2s; }
+  .field input:focus { border-color: rgba(245,158,11,.4); }
+  .field input::placeholder { color: var(--text4); }
+  .field input[type=date] { color-scheme: dark; }
+
+  /* ── buttons row ── */
+  .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+  .cancel-btn { flex: 1; padding: 13px; border-radius: 12px; border: 1px solid var(--border); background: transparent; color: var(--text3); font-size: 13px; transition: all .2s; }
+  .cancel-btn:hover { color: var(--text2); background: rgba(255,255,255,.03); }
+  .cancel-btn:active { transform: scale(.97); }
+  .save-btn { flex: 2; padding: 13px; border-radius: 12px; border: none; background: linear-gradient(135deg, var(--gold), var(--gold2)); color: #000; font-weight: 700; font-size: 13px; box-shadow: 0 4px 20px rgba(245,158,11,.3); transition: all .2s; }
+  .save-btn:hover { box-shadow: 0 6px 25px rgba(245,158,11,.4); transform: translateY(-1px); }
+  .save-btn:active { transform: scale(.97); }
+  .del-confirm-btn { flex: 1; padding: 12px; border-radius: 12px; border: none; background: var(--red2); color: #fff; font-weight: 700; font-size: 13px; transition: all .2s; }
+  .del-confirm-btn:hover { background: #ef4444; }
+  .del-confirm-btn:active { transform: scale(.97); }
+
+  /* ── toast ── */
+  #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 999; padding: 10px 20px; border-radius: 100px; font-size: 13px; font-weight: 500; white-space: nowrap; backdrop-filter: blur(12px); display: none; }
+  #toast.show { display: block; animation: toastIn .3s ease both; }
+  #toast.hide { animation: toastOut .3s ease both; }
+  #toast.success { background: rgba(52,211,153,.15); border: 1px solid rgba(52,211,153,.3); color: var(--green); }
+  #toast.info    { background: rgba(100,116,139,.15); border: 1px solid rgba(100,116,139,.3); color: var(--text2); }
+
+  /* ── loading ── */
+  #loading { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(6px); z-index: 100; align-items: center; justify-content: center; }
+  .spinner { width: 36px; height: 36px; border: 2px solid rgba(245,158,11,.2); border-top-color: var(--gold); border-radius: 50%; animation: spin 1s linear infinite; }
+
+  /* ── responsive ── */
+  @media (max-width: 430px) {
+    .hero-pnl { font-size: 30px; }
+    .hero-winpct { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div class="header fade-up">
+    <div>
+      <div class="header-label">Portfolio Tracker</div>
+      <div class="header-title" id="header-title">2025 · 03月</div>
+    </div>
+    <button class="icon-btn" id="logout-btn" title="登出/設定">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </button>
+  </div>
+
+  <!-- HERO CARD -->
+  <div class="hero fade-up" id="hero-card" style="animation-delay:.05s; border:1px solid rgba(52,211,153,.15)">
+    <div class="hero-glow" id="hero-glow"></div>
+    <div class="hero-glow2"></div>
+    <div class="hero-inner">
+      <div>
+        <div class="hero-label">本月損益</div>
+        <div class="hero-pnl pos" id="hero-pnl">+0</div>
+        <div class="hero-rate pos" id="hero-rate">+0.00%</div>
+      </div>
+      <div style="text-align:right">
+        <div class="hero-winlabel">勝率</div>
+        <div class="hero-winpct" id="hero-winpct">0<span>%</span></div>
+        <div class="hero-winsub" id="hero-winsub">0勝 / 0敗</div>
+      </div>
+    </div>
+    <div class="hero-bar-wrap">
+      <div class="hero-bar" id="hero-bar" style="width:0%; background:linear-gradient(90deg,#34d399,#059669)"></div>
+    </div>
+    <div class="hero-bar-legend">
+      <span class="pos" id="hero-win-label">0 勝</span>
+      <span class="neg" id="hero-loss-label">0 敗</span>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs fade-up" style="animation-delay:.1s">
+    <button class="tab-btn active" data-tab="calendar">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      日曆
+    </button>
+    <button class="tab-btn" data-tab="chart">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      圖表
+    </button>
+    <button class="tab-btn" data-tab="analysis">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      分析
+    </button>
+    <button class="tab-btn" data-tab="ipo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      標的
+    </button>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- ═══ CALENDAR ═══ -->
+    <section class="section active fade-up" id="sec-calendar">
+      <div class="month-nav">
+        <button class="nav-btn" id="prev-month">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="month-label" id="month-label">2025 / 03</span>
+        <button class="nav-btn" id="next-month">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+      <div class="cal-weekdays">
+        <div class="cal-weekday">日</div><div class="cal-weekday">一</div>
+        <div class="cal-weekday">二</div><div class="cal-weekday">三</div>
+        <div class="cal-weekday">四</div><div class="cal-weekday">五</div>
+        <div class="cal-weekday">六</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </section>
+
+    <!-- ═══ CHART ═══ -->
+    <section class="section" id="sec-chart">
+      <div class="period-toggle">
+        <button class="period-btn active" data-period="daily">日</button>
+        <button class="period-btn" data-period="monthly">月</button>
+      </div>
+      <div class="chart-card">
+        <div class="chart-ylabel">報酬率 (%)</div>
+        <div class="chart-bars" id="chart-bars">
+          <div class="chart-zeroline"></div>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">最大獲利</div>
+          <div class="stat-val pos" id="chart-maxp">+0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最大虧損</div>
+          <div class="stat-val neg" id="chart-maxl">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">獲利天數</div>
+          <div class="stat-val" style="color:var(--green)" id="chart-win">0 天</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">虧損天數</div>
+          <div class="stat-val" style="color:var(--red)" id="chart-loss">0 天</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ ANALYSIS ═══ -->
+    <section class="section" id="sec-analysis">
+      <div class="analysis-wrap">
+        <div class="win-card">
+          <div class="win-header">
+            <div class="win-title">月度勝率</div>
+            <div class="win-pct" id="an-winpct">0<span>%</span></div>
+          </div>
+          <div class="win-bar-wrap">
+            <div class="win-bar" id="an-winbar" style="width:0%"></div>
+          </div>
+          <div class="win-legend">
+            <span class="pos" id="an-win">0 勝</span>
+            <span class="neg" id="an-loss">0 敗</span>
+          </div>
+        </div>
+        <div class="row-card">
+          <span class="row-label">本月累計損益</span>
+          <div>
+            <div class="row-val" id="an-total">+0</div>
+            <div class="row-sub" id="an-rate">+0%</div>
+          </div>
+        </div>
+        <div class="row-card">
+          <span class="row-label">最大單日獲利</span>
+          <div class="row-val pos" id="an-maxp">+0</div>
+        </div>
+        <div class="row-card">
+          <span class="row-label">最大單日虧損</span>
+          <div class="row-val neg" id="an-maxl">0</div>
+        </div>
+        <div class="row-card">
+          <span class="row-label">總交易天數</span>
+          <div class="row-val" style="color:var(--indigo)" id="an-days">0 天</div>
+        </div>
+        <button class="danger-btn" id="reset-btn">清除所有資料</button>
+      </div>
+    </section>
+
+    <!-- ═══ IPO ═══ -->
+    <section class="section" id="sec-ipo">
+      <div class="ipo-header">
+        <div>
+          <div class="ipo-title">標的記錄</div>
+          <div class="ipo-count" id="ipo-count">0 筆</div>
+        </div>
+        <button class="gold-btn" id="add-ipo-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新增
+        </button>
+      </div>
+      <div id="ipo-summary" style="display:none" class="ipo-summary">
+        <span class="ipo-sum-label">合計損益</span>
+        <span class="ipo-sum-val" id="ipo-total">+0</span>
+      </div>
+      <div class="ipo-list" id="ipo-list">
+        <div class="ipo-empty">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <p>尚無標的記錄</p>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /content -->
+</div><!-- /app -->
+
+<!-- ══ EDIT MODAL ══ -->
+<div class="overlay" id="edit-overlay">
+  <div class="bottom-sheet" id="edit-sheet">
+    <div class="sheet-drag"></div>
+    <div class="sheet-header">
+      <div>
+        <div class="sheet-sublabel">編輯每日記錄</div>
+        <div class="sheet-date" id="edit-date-label">—</div>
+      </div>
+      <button class="icon-btn" id="edit-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="field"><label>成本（萬元）</label><input type="number" id="f-cost" placeholder="0" step="0.0001"/></div>
+    <div class="field"><label>損益（萬元）</label><input type="number" id="f-pnl"  placeholder="0" step="0.0001"/></div>
+    <div class="field"><label>市值（萬元）</label><input type="number" id="f-mv"   placeholder="0" step="0.0001"/></div>
+    <div class="btn-row">
+      <button class="cancel-btn" id="edit-cancel">取消</button>
+      <button class="save-btn"   id="edit-save">儲存記錄</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ IPO MODAL ══ -->
+<div class="overlay" id="ipo-overlay">
+  <div class="bottom-sheet" id="ipo-sheet">
+    <div class="sheet-drag"></div>
+    <div class="sheet-header">
+      <div class="sheet-title">新增標的記錄</div>
+      <button class="icon-btn" id="ipo-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="field"><label>標的名稱</label><input type="text"   id="i-name" placeholder="台積電"/></div>
+    <div class="field"><label>代碼</label>    <input type="text"   id="i-code" placeholder="2330"/></div>
+    <div class="field"><label>成本（萬元）</label><input type="number" id="i-cost" placeholder="0" step="0.0001"/></div>
+    <div class="field"><label>損益（萬元）</label><input type="number" id="i-pnl"  placeholder="0" step="0.0001"/></div>
+    <div class="field"><label>日期</label>    <input type="date"   id="i-date"/></div>
+    <div class="btn-row">
+      <button class="cancel-btn" id="ipo-cancel">取消</button>
+      <button class="save-btn"   id="ipo-save">新增標的</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RESET MODAL ══ -->
+<div class="overlay center" id="reset-overlay">
+  <div class="confirm-card pop">
+    <div class="confirm-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <div class="confirm-title">確認清除？</div>
+    <div class="confirm-desc">所有日曆資料將被永久刪除，此操作無法復原。</div>
+    <div class="btn-row">
+      <button class="cancel-btn" id="reset-cancel">取消</button>
+      <button class="del-confirm-btn" id="reset-confirm">確認清除</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+<!-- LOADING -->
+<div id="loading"><div class="spinner"></div></div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════
+const STORAGE_KEY_CAL = 'pt_calendar_v1';
+const STORAGE_KEY_IPO = 'pt_ipo_v1';
+
+let state = {
+  records: loadLS(STORAGE_KEY_CAL, {}),
+  ipoRecords: loadLS(STORAGE_KEY_IPO, seedIpo()),
+  cur: new Date(),
+  tab: 'calendar',
+  chartMode: 'daily',
+  editDate: null,
+};
+
+function loadLS(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+}
+function saveLS(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+function seedIpo() {
+  return [
+    { id:'1', name:'台積電', code:'2330', cost:1500000, pnl:220000,  date:'2025-01-15' },
+    { id:'2', name:'聯發科', code:'2454', cost:800000,  pnl:-45000,  date:'2025-02-03' },
+    { id:'3', name:'鴻海',   code:'2317', cost:600000,  pnl:88000,   date:'2025-03-20' },
+  ];
+}
+
+// Seed demo calendar data if empty
+if (Object.keys(state.records).length === 0) {
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  let running = 5000000;
+  for (let d = 1; d <= now.getDate(); d++) {
+    if (Math.random() < 0.28) continue;
+    const pnl = Math.round((Math.random() - 0.42) * 120000);
+    running += pnl;
+    const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    state.records[ds] = { cost: running - pnl, pnl };
+  }
+  saveLS(STORAGE_KEY_CAL, state.records);
+}
+
+// ══════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════
+const getDays  = (y,m) => new Date(y, m+1, 0).getDate();
+const getFirst = (y,m) => new Date(y, m, 1).getDay();
+
+function fmtShort(v) {
+  if (!v) return '0';
+  const s = v > 0 ? '+' : '';
+  const a = Math.abs(v);
+  if (a >= 10000) return `${s}${parseFloat((v/10000).toFixed(2))}萬`;
+  return `${s}${Math.round(v).toLocaleString()}`;
+}
+function fmtFull(v) {
+  if (!v) return '0';
+  const s = v > 0 ? '+' : '';
+  return `${s}${Math.round(v).toLocaleString()}`;
+}
+function fmtPct(v) {
+  if (!v) return '+0%';
+  return `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
+}
+function getY()   { return state.cur.getFullYear(); }
+function getM()   { return state.cur.getMonth(); }
+function getPfx() { return `${getY()}-${String(getM()+1).padStart(2,'0')}`; }
+
+function getPrevMV(dateStr) {
+  const sorted = Object.keys(state.records).sort();
+  const past = sorted.filter(d => d < dateStr);
+  if (past.length) { const l = past[past.length-1]; return state.records[l].cost + state.records[l].pnl; }
+  return 0;
+}
+
+function calcMonthStats(pfx) {
+  const sorted = Object.keys(state.records).sort();
+  const past = sorted.filter(d => d < `${pfx}-01`);
+  let base = 0;
+  if (past.length) { const l = past[past.length-1]; base = state.records[l].cost + state.records[l].pnl; }
+  let pnl = 0, firstCost = null;
+  sorted.forEach(d => {
+    if (!d.startsWith(pfx)) return;
+    pnl += state.records[d].pnl;
+    if (firstCost === null) firstCost = state.records[d].cost;
+  });
+  if (!base && firstCost) base = firstCost;
+  return { pnl, rate: base > 0 ? (pnl/base)*100 : 0 };
+}
+
+function calcAnalysis(pfx) {
+  let win=0, loss=0, maxP=0, maxL=0, total=0, days=0;
+  Object.entries(state.records).forEach(([d,v]) => {
+    if (!d.startsWith(pfx)) return;
+    days++; total += v.pnl;
+    if (v.pnl > 0) win++; else if (v.pnl < 0) loss++;
+    if (v.pnl > maxP) maxP = v.pnl;
+    if (v.pnl < maxL) maxL = v.pnl;
+  });
+  return { win, loss, maxP, maxL, total, days, winRate: days ? (win/days)*100 : 0 };
+}
+
+// ══════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg, type='success') {
+  const el = document.getElementById('toast');
+  clearTimeout(toastTimer);
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  toastTimer = setTimeout(() => {
+    el.className = `hide ${type}`;
+    setTimeout(() => { el.className = ''; }, 300);
+  }, 2200);
+}
+
+// ══════════════════════════════════════════════════
+//  RENDER HERO
+// ══════════════════════════════════════════════════
+function renderHero() {
+  const pfx = getPfx();
+  const stats = calcMonthStats(pfx);
+  const an = calcAnalysis(pfx);
+  const profit = stats.pnl >= 0;
+  const ac = profit ? '#34d399' : '#f87171';
+  const ac2 = profit ? '#059669' : '#dc2626';
+
+  const card = document.getElementById('hero-card');
+  card.style.borderColor = profit ? 'rgba(52,211,153,.15)' : 'rgba(248,113,113,.15)';
+  const glow = document.getElementById('hero-glow');
+  glow.style.background = profit
+    ? 'radial-gradient(circle,rgba(52,211,153,.07),transparent 70%)'
+    : 'radial-gradient(circle,rgba(248,113,113,.07),transparent 70%)';
+
+  const pnlEl = document.getElementById('hero-pnl');
+  pnlEl.textContent = fmtShort(stats.pnl);
+  pnlEl.style.color = ac;
+
+  const rateEl = document.getElementById('hero-rate');
+  rateEl.textContent = fmtPct(stats.rate);
+  rateEl.style.color = ac;
+
+  document.getElementById('hero-winpct').childNodes[0].textContent = an.winRate.toFixed(0);
+  document.getElementById('hero-winsub').textContent = `${an.win}勝 / ${an.loss}敗`;
+
+  const bar = document.getElementById('hero-bar');
+  bar.style.width = `${an.winRate}%`;
+  bar.style.background = profit
+    ? 'linear-gradient(90deg,#34d399,#059669)'
+    : 'linear-gradient(90deg,#f87171,#dc2626)';
+
+  document.getElementById('hero-win-label').textContent = `${an.win} 勝`;
+  document.getElementById('hero-loss-label').textContent = `${an.loss} 敗`;
+}
+
+// ══════════════════════════════════════════════════
+//  RENDER HEADER & MONTH LABEL
+// ══════════════════════════════════════════════════
+function renderHeader() {
+  const y = getY(), m = getM();
+  const mn = String(m+1).padStart(2,'0');
+  document.getElementById('header-title').textContent = `${y} · ${mn}月`;
+  document.getElementById('month-label').textContent = `${y} / ${mn}`;
+}
+
+// ══════════════════════════════════════════════════
+//  RENDER CALENDAR
+// ══════════════════════════════════════════════════
+function renderCalendar() {
+  const y = getY(), m = getM(), pfx = getPfx();
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+  const today = new Date();
+  const isTodayMonth = today.getFullYear() === y && today.getMonth() === m;
+
+  // empty cells
+  const first = getFirst(y,m);
+  for (let i=0; i<first; i++) {
+    const e = document.createElement('div');
+    e.className = 'cal-empty';
+    grid.appendChild(e);
+  }
+
+  // day cells
+  const days = getDays(y,m);
+  for (let d=1; d<=days; d++) {
+    const ds = `${pfx}-${String(d).padStart(2,'0')}`;
+    const rec = state.records[ds];
+    const pnl = rec ? rec.pnl : 0;
+    const rate = rec && rec.cost > 0 ? (pnl/rec.cost)*100 : 0;
+    const isToday = isTodayMonth && today.getDate() === d;
+
+    const cell = document.createElement('div');
+    cell.className = 'cal-day' + (isToday ? ' today' : '');
+    cell.dataset.day = d;
+
+    const numDiv = document.createElement('div');
+    numDiv.className = 'day-num';
+    numDiv.textContent = d;
+
+    cell.appendChild(numDiv);
+
+    if (rec) {
+      const cls = pnl > 0 ? 'pos' : pnl < 0 ? 'neg' : 'neu';
+      const pnlDiv = document.createElement('div');
+      pnlDiv.className = `day-pnl ${cls}`;
+      pnlDiv.textContent = fmtShort(pnl);
+
+      const rateDiv = document.createElement('div');
+      rateDiv.className = `day-rate ${cls}`;
+      rateDiv.textContent = fmtPct(rate);
+
+      cell.appendChild(pnlDiv);
+      cell.appendChild(rateDiv);
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'day-empty-line';
+      empty.textContent = '─';
+      cell.appendChild(empty);
+    }
+
+    cell.addEventListener('click', () => openEditModal(d));
+    grid.appendChild(cell);
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  RENDER CHART
+// ══════════════════════════════════════════════════
+function renderChart() {
+  const y = getY(), m = getM(), pfx = getPfx();
+  const mode = state.chartMode;
+  let data = [];
+
+  if (mode === 'daily') {
+    const days = getDays(y,m);
+    for (let d=1; d<=days; d++) {
+      const ds = `${pfx}-${String(d).padStart(2,'0')}`;
+      const r = state.records[ds];
+      data.push({ label:`${d}`, rate: r&&r.cost>0?(r.pnl/r.cost)*100:0, has:!!r });
+    }
+  } else {
+    for (let mi=0; mi<12; mi++) {
+      const mp = `${y}-${String(mi+1).padStart(2,'0')}`;
+      const sorted = Object.keys(state.records).sort();
+      const past = sorted.filter(d => d < `${mp}-01`);
+      let base=0;
+      if (past.length) { const l=past[past.length-1]; base=state.records[l].cost+state.records[l].pnl; }
+      let pnl=0, fc=null, has=false;
+      sorted.forEach(d => { if(!d.startsWith(mp)) return; pnl+=state.records[d].pnl; if(!fc)fc=state.records[d].cost; has=true; });
+      if (!base&&fc) base=fc;
+      data.push({ label:`${mi+1}月`, rate:base>0?(pnl/base)*100:0, has });
+    }
+  }
+
+  const maxAbs = Math.max(...data.map(d=>Math.abs(d.rate)), 1);
+  const barsEl = document.getElementById('chart-bars');
+  // keep zero line
+  barsEl.innerHTML = '<div class="chart-zeroline"></div>';
+
+  data.forEach((p, i) => {
+    const show = mode === 'monthly' || i % Math.ceil(data.length/15) === 0;
+    const pct = (Math.abs(p.rate)/maxAbs)*44;
+    const isPos = p.rate >= 0;
+    const delay = i * 8;
+
+    const col = document.createElement('div');
+    col.className = 'chart-col';
+
+    const top = document.createElement('div');
+    top.className = 'chart-top';
+    if (isPos && p.has) {
+      const bar = document.createElement('div');
+      bar.className = 'chart-bar-pos';
+      bar.style.height = `${pct}%`;
+      bar.style.minHeight = '2px';
+      bar.style.background = 'linear-gradient(180deg,rgba(52,211,153,.9),rgba(52,211,153,.4))';
+      bar.style.animationDelay = `${delay}ms`;
+      top.appendChild(bar);
+    }
+
+    const bot = document.createElement('div');
+    bot.className = 'chart-bot';
+    if (!isPos && p.has) {
+      const bar = document.createElement('div');
+      bar.className = 'chart-bar-neg';
+      bar.style.height = `${pct}%`;
+      bar.style.minHeight = '2px';
+      bar.style.background = 'linear-gradient(180deg,rgba(248,113,113,.4),rgba(248,113,113,.9))';
+      bar.style.animationDelay = `${delay}ms`;
+      bot.appendChild(bar);
+    }
+
+    col.appendChild(top);
+    col.appendChild(bot);
+
+    if (show) {
+      const lbl = document.createElement('div');
+      lbl.className = 'chart-label';
+      lbl.textContent = p.label;
+      col.appendChild(lbl);
+    }
+
+    barsEl.appendChild(col);
+  });
+
+  // update stat cards
+  const an = calcAnalysis(getPfx());
+  document.getElementById('chart-maxp').textContent  = fmtShort(an.maxP);
+  document.getElementById('chart-maxl').textContent  = fmtShort(an.maxL);
+  document.getElementById('chart-win').textContent   = `${an.win} 天`;
+  document.getElementById('chart-loss').textContent  = `${an.loss} 天`;
+}
+
+// ══════════════════════════════════════════════════
+//  RENDER ANALYSIS
+// ══════════════════════════════════════════════════
+function renderAnalysis() {
+  const pfx = getPfx();
+  const an = calcAnalysis(pfx);
+  const stats = calcMonthStats(pfx);
+
+  document.getElementById('an-winpct').childNodes[0].textContent = an.winRate.toFixed(1);
+  document.getElementById('an-winbar').style.width = `${an.winRate}%`;
+  document.getElementById('an-win').textContent = `${an.win} 勝`;
+  document.getElementById('an-loss').textContent = `${an.loss} 敗`;
+
+  const totalEl = document.getElementById('an-total');
+  totalEl.textContent = fmtFull(an.total);
+  totalEl.style.color = an.total >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('an-rate').textContent = fmtPct(stats.rate);
+
+  document.getElementById('an-maxp').textContent = fmtFull(an.maxP);
+  document.getElementById('an-maxl').textContent = fmtFull(an.maxL);
+  document.getElementById('an-days').textContent = `${an.days} 天`;
+}
+
+// ══════════════════════════════════════════════════
+//  RENDER IPO
+// ══════════════════════════════════════════════════
+function renderIpo() {
+  const list = document.getElementById('ipo-list');
+  const summary = document.getElementById('ipo-summary');
+  document.getElementById('ipo-count').textContent = `${state.ipoRecords.length} 筆`;
+
+  list.innerHTML = '';
+
+  if (state.ipoRecords.length === 0) {
+    list.innerHTML = `<div class="ipo-empty">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      <p>尚無標的記錄</p>
+    </div>`;
+    summary.style.display = 'none';
+    return;
+  }
+
+  const total = state.ipoRecords.reduce((s,r) => s+r.pnl, 0);
+  summary.style.display = 'flex';
+  const tv = document.getElementById('ipo-total');
+  tv.textContent = fmtShort(total);
+  tv.style.color = total >= 0 ? 'var(--green)' : 'var(--red)';
+  summary.style.borderColor = total >= 0 ? 'rgba(52,211,153,.15)' : 'rgba(248,113,113,.15)';
+
+  state.ipoRecords.forEach(r => {
+    const pnlColor = r.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const rateStr = r.cost > 0 ? fmtPct((r.pnl/r.cost)*100) : '';
+    const item = document.createElement('div');
+    item.className = 'ipo-item';
+    item.innerHTML = `
+      <div class="ipo-info">
+        <div class="ipo-name-row">
+          <span class="ipo-name">${r.name}</span>
+          <span class="ipo-code">${r.code}</span>
+        </div>
+        <div class="ipo-date">${r.date}</div>
+      </div>
+      <div class="ipo-pnl">
+        <div class="ipo-pnl-val" style="color:${pnlColor}">${fmtShort(r.pnl)}</div>
+        ${rateStr ? `<div class="ipo-pnl-rate">${rateStr}</div>` : ''}
+      </div>
+      <button class="delete-btn" data-id="${r.id}" title="刪除">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>
+    `;
+    list.appendChild(item);
+  });
+
+  list.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      state.ipoRecords = state.ipoRecords.filter(r => r.id !== id);
+      saveLS(STORAGE_KEY_IPO, state.ipoRecords);
+      renderIpo();
+      showToast('已刪除', 'info');
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════
+//  RENDER ALL
+// ══════════════════════════════════════════════════
+function renderAll() {
+  renderHeader();
+  renderHero();
+  renderCalendar();
+  renderChart();
+  renderAnalysis();
+  renderIpo();
+}
+
+// ══════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    state.tab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(`sec-${tab}`).classList.add('active');
+    if (tab === 'chart') renderChart();
+    if (tab === 'analysis') renderAnalysis();
+    if (tab === 'ipo') renderIpo();
+  });
+});
+
+// ══════════════════════════════════════════════════
+//  MONTH NAV
+// ══════════════════════════════════════════════════
+document.getElementById('prev-month').addEventListener('click', () => {
+  const y = getY(), m = getM();
+  state.cur = new Date(y, m-1, 1);
+  renderHeader();
+  renderHero();
+  renderCalendar();
+  if (state.tab==='chart') renderChart();
+  if (state.tab==='analysis') renderAnalysis();
+});
+document.getElementById('next-month').addEventListener('click', () => {
+  const y = getY(), m = getM();
+  state.cur = new Date(y, m+1, 1);
+  renderHeader();
+  renderHero();
+  renderCalendar();
+  if (state.tab==='chart') renderChart();
+  if (state.tab==='analysis') renderAnalysis();
+});
+
+// ══════════════════════════════════════════════════
+//  CHART PERIOD TOGGLE
+// ══════════════════════════════════════════════════
+document.querySelectorAll('.period-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.chartMode = btn.dataset.period;
+    renderChart();
+  });
+});
+
+// ══════════════════════════════════════════════════
+//  OVERLAY HELPERS
+// ══════════════════════════════════════════════════
+function openOverlay(id) {
+  const el = document.getElementById(id);
+  el.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeOverlay(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('open');
+  document.body.style.overflow = '';
+}
+['edit-overlay','ipo-overlay','reset-overlay'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeOverlay(id);
+  });
+});
+
+// ══════════════════════════════════════════════════
+//  EDIT MODAL
+// ══════════════════════════════════════════════════
+function openEditModal(day) {
+  const pfx = getPfx();
+  const ds = `${pfx}-${String(day).padStart(2,'0')}`;
+  state.editDate = ds;
+  document.getElementById('edit-date-label').textContent = ds;
+
+  const rec = state.records[ds];
+  if (rec) {
+    document.getElementById('f-cost').value = (rec.cost/10000).toString();
+    document.getElementById('f-pnl').value  = (rec.pnl/10000).toString();
+    document.getElementById('f-mv').value   = ((rec.cost+rec.pnl)/10000).toString();
+  } else {
+    const prevMV = getPrevMV(ds);
+    document.getElementById('f-cost').value = prevMV > 0 ? (prevMV/10000).toString() : '';
+    document.getElementById('f-pnl').value  = '';
+    document.getElementById('f-mv').value   = '';
+  }
+  openOverlay('edit-overlay');
+}
+
+// linked inputs
+function syncEditInputs(changed) {
+  const c = parseFloat(document.getElementById('f-cost').value) || 0;
+  const p = parseFloat(document.getElementById('f-pnl').value)  || 0;
+  const mv= parseFloat(document.getElementById('f-mv').value)   || 0;
+  if (changed === 'cost' || changed === 'pnl') {
+    document.getElementById('f-mv').value = (c + p) || '';
+  } else if (changed === 'mv') {
+    document.getElementById('f-pnl').value = (mv - c) || '';
+  }
+}
+document.getElementById('f-cost').addEventListener('input', () => syncEditInputs('cost'));
+document.getElementById('f-pnl').addEventListener('input',  () => syncEditInputs('pnl'));
+document.getElementById('f-mv').addEventListener('input',   () => syncEditInputs('mv'));
+
+document.getElementById('edit-close').addEventListener('click',  () => closeOverlay('edit-overlay'));
+document.getElementById('edit-cancel').addEventListener('click', () => closeOverlay('edit-overlay'));
+document.getElementById('edit-save').addEventListener('click', () => {
+  const c = Math.round((parseFloat(document.getElementById('f-cost').value)||0)*10000);
+  const p = Math.round((parseFloat(document.getElementById('f-pnl').value)||0)*10000);
+  const ds = state.editDate;
+  if (c===0 && p===0 && !document.getElementById('f-cost').value) {
+    delete state.records[ds];
+  } else {
+    state.records[ds] = { cost:c, pnl:p };
+  }
+  saveLS(STORAGE_KEY_CAL, state.records);
+  closeOverlay('edit-overlay');
+  renderAll();
+  showToast('已儲存 ✓');
+});
+
+// ══════════════════════════════════════════════════
+//  IPO MODAL
+// ══════════════════════════════════════════════════
+document.getElementById('add-ipo-btn').addEventListener('click', () => {
+  ['i-name','i-code','i-cost','i-pnl'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('i-date').value = new Date().toISOString().split('T')[0];
+  openOverlay('ipo-overlay');
+});
+document.getElementById('ipo-close').addEventListener('click',  () => closeOverlay('ipo-overlay'));
+document.getElementById('ipo-cancel').addEventListener('click', () => closeOverlay('ipo-overlay'));
+document.getElementById('ipo-save').addEventListener('click', () => {
+  const rec = {
+    id: Date.now().toString(),
+    name: document.getElementById('i-name').value || '未命名',
+    code: document.getElementById('i-code').value || '-',
+    cost: Math.round((parseFloat(document.getElementById('i-cost').value)||0)*10000),
+    pnl:  Math.round((parseFloat(document.getElementById('i-pnl').value)||0)*10000),
+    date: document.getElementById('i-date').value || new Date().toISOString().split('T')[0],
+  };
+  state.ipoRecords = [rec, ...state.ipoRecords];
+  saveLS(STORAGE_KEY_IPO, state.ipoRecords);
+  closeOverlay('ipo-overlay');
+  renderIpo();
+  showToast('標的已新增 ✓');
+});
+
+// ══════════════════════════════════════════════════
+//  RESET MODAL
+// ══════════════════════════════════════════════════
+document.getElementById('reset-btn').addEventListener('click', () => openOverlay('reset-overlay'));
+document.getElementById('reset-cancel').addEventListener('click', () => closeOverlay('reset-overlay'));
+document.getElementById('reset-confirm').addEventListener('click', () => {
+  state.records = {};
+  saveLS(STORAGE_KEY_CAL, state.records);
+  closeOverlay('reset-overlay');
+  renderAll();
+  showToast('資料已清除', 'info');
+});
+
+// ══════════════════════════════════════════════════
+//  LOGOUT BTN (demo)
+// ══════════════════════════════════════════════════
+document.getElementById('logout-btn').addEventListener('click', () => showToast('示範模式，無需登出', 'info'));
+
+// ══════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════
+renderAll();
+</script>
+</body>
+</html>
